@@ -40,7 +40,7 @@ module Mongo
     def_delegators :@server, :cluster
 
     # @return [ Collection::View ] view The collection view.
-    attr_reader :view
+    attr_reader :view, :isOK, :isPartial
 
     # Creates a +Cursor+ object.
     #
@@ -59,6 +59,8 @@ module Mongo
       @remaining = limit if limited?
       @cursor_id = result.cursor_id
       @coll_name = nil
+      @isOK = nil
+      @isPartial = false
       register
       ObjectSpace.define_finalizer(self, self.class.finalize(result.cursor_id,
                                                              cluster,
@@ -108,7 +110,15 @@ module Mongo
     #
     # @since 2.0.0
     def each
-      process(@initial_result).each { |doc| yield doc }
+      x = process(@initial_result)
+      require 'pry'
+     # binding.pry
+      
+      @isPartial = @initial_result.reply.documents.first['isPartial']
+      x.each do |doc|
+        doc.store(:isPartial, @isPartial)
+        yield doc
+      end
       while more?
         return kill_cursors if exhausted?
         get_more.each { |doc| yield doc }
@@ -127,6 +137,13 @@ module Mongo
       @view.batch_size && @view.batch_size > 0 ? @view.batch_size : limit
     end
 
+    def isOK?
+      return @isOK == 1.0
+    end
+
+    def isPartial?
+      return @isPartial
+    end
     # Is the cursor closed?
     #
     # @example Is the cursor closed?
